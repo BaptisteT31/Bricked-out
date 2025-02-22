@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Brick Out - Jeu</title>
+  <title>Brick Out - Jeu Responsive</title>
   <style>
     body {
       margin: 0;
@@ -113,21 +113,36 @@
   <script>
     // Configuration centralisée
     const config = {
-      ballSize: 50,                   // Taille de la balle (en pixels)
-      ballInitialSpeed: 3,            // Vitesse initiale de la balle
-      paddleWidth: 100,               // Largeur du paddle
-      paddleHeight: 10,               // Hauteur du paddle
-      ballSpawnVerticalRatio: 0.33,   // La balle apparaît dans le tiers supérieur
-      paddleVerticalPositionRatio: 0.66, // Le paddle se place à 66% de la hauteur
-      extraSpeedFactor: 0.2,          // Influence de la vitesse horizontale du paddle sur la balle
-      bounceAngleMax: Math.PI / 3,    // Angle maximum de rebond (60°)
-      speedIncreaseFactor: 0.05,      // Augmentation de la vitesse de la balle à chaque rebond sur le plafond
-      blockRows: 3,                   // Nombre de lignes de blocs
-      blockCols: 8,                   // Nombre de colonnes de blocs
-      blockWidth: 80,                 // Largeur d'un bloc
-      blockHeight: 20,                // Hauteur d'un bloc
-      blockGap: 10                    // Espace entre les blocs
+      // Ces valeurs par défaut seront recalculées pour les petits écrans
+      ballSize: 50,
+      ballInitialSpeed: 3,
+      paddleWidth: 100,
+      paddleHeight: 10,
+      ballSpawnVerticalRatio: 0.33,
+      paddleVerticalPositionRatio: 0.66,
+      extraSpeedFactor: 0.2,
+      bounceAngleMax: Math.PI / 3,
+      speedIncreaseFactor: 0.05,
+      blockRows: 3,
+      blockCols: 8,
+      blockWidth: 80,
+      blockHeight: 20,
+      blockGap: 10
     };
+
+    // Fonction pour adapter les dimensions en fonction de l'écran
+    function setResponsiveConfig() {
+      const isMobile = window.innerWidth < 600;
+      config.ballSize = isMobile ? window.innerWidth * 0.1 : 50;
+      config.paddleWidth = isMobile ? window.innerWidth * 0.2 : 100;
+      config.paddleHeight = isMobile ? window.innerWidth * 0.02 : 10;
+      config.blockWidth = isMobile ? window.innerWidth * 0.1 : 80;
+      config.blockHeight = isMobile ? window.innerWidth * 0.025 : 20;
+      // On peut également ajuster d'autres paramètres si nécessaire
+    }
+
+    // Appel initial pour adapter la configuration
+    setResponsiveConfig();
 
     const ball = document.getElementById('ball');
     const paddle = document.getElementById('paddle');
@@ -156,7 +171,7 @@
     // Crée les blocs et les place dans le container, en recréant le texte caché derrière
     function createBlocks() {
       blocksContainer.innerHTML = "";
-      // Créer le texte caché
+      // Création du texte caché
       const ht = document.createElement('div');
       ht.id = "hidden-text";
       ht.textContent = "Le secret est révélé !";
@@ -174,7 +189,7 @@
       ht.style.pointerEvents = "none";
       blocksContainer.appendChild(ht);
 
-      // Calculer l'espace total utilisé par les blocs pour les centrer
+      // Calcul pour centrer la grille de blocs
       const totalWidth = config.blockCols * config.blockWidth + (config.blockCols - 1) * config.blockGap;
       const offsetX = (window.innerWidth - totalWidth) / 2;
       const offsetY = 20; // marge depuis le haut
@@ -200,7 +215,7 @@
       velocityY = config.ballInitialSpeed;
     }
 
-    // Positionne le paddle en fonction de la souris (axe X) et selon la config pour l'axe Y
+    // Positionne le paddle en fonction de la position X et selon la config pour Y
     function updatePaddlePosition(x) {
       paddle.style.left = x + 'px';
       paddle.style.top = (window.innerHeight * config.paddleVerticalPositionRatio) + 'px';
@@ -221,14 +236,18 @@
     // Fonction de fin de partie
     function gameOver() {
       gameRunning = false;
-      gameOverMessage.textContent = "Perdu ! fais un effort 👉\nScore : " + score + " cases détruites";
+      gameOverMessage.textContent = "Perdu ! fais un effort 👉\nScore : " + score + " blocs détruits";
       gameOverScreen.style.display = 'flex';
     }
 
     // Fonction pour démarrer le jeu
     function startGame() {
-      startScreen.style.display = 'none';
-      gameOverScreen.style.display = 'none';
+      // Réajuster les dimensions responsives au démarrage (en cas de rotation ou redimensionnement)
+      setResponsiveConfig();
+      ball.style.width = config.ballSize + 'px';
+      ball.style.height = config.ballSize + 'px';
+      paddle.style.width = config.paddleWidth + 'px';
+      paddle.style.height = config.paddleHeight + 'px';
       score = 0;
       createBlocks();
       resetBall();
@@ -262,7 +281,7 @@
         velocityY *= (1 + config.speedIncreaseFactor);
       }
 
-      // Vérification du sol (Game Over)
+      // Vérification du sol (fin de partie)
       if (nextPosY + config.ballSize >= window.innerHeight) {
         gameOver();
         return;
@@ -287,7 +306,7 @@
         posY = paddleRect.top - config.ballSize;
       }
 
-      // Vérifier les collisions avec chaque bloc et les dégommer
+      // Collision avec les blocs (et suppression)
       const blocks = document.getElementsByClassName("block");
       for (let i = blocks.length - 1; i >= 0; i--) {
         if (checkCollision(blocks[i])) {
@@ -302,18 +321,27 @@
       requestAnimationFrame(updatePosition);
     }
 
-    // Suivi du mouvement de la souris pour déplacer le paddle horizontalement
+    // Suivi du mouvement de la souris pour déplacer le paddle
     document.addEventListener('mousemove', (e) => {
       updatePaddlePosition(e.clientX);
       paddleSpeed = e.clientX - lastMouseX;
       lastMouseX = e.clientX;
     });
 
+    // Ajout de l'écouteur pour le tactile sur mobile
+    document.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      updatePaddlePosition(touch.clientX);
+      paddleSpeed = touch.clientX - lastMouseX;
+      lastMouseX = touch.clientX;
+    }, { passive: false });
+
     // Gestion des boutons Play et Recommencer
     playBtn.addEventListener('click', startGame);
     restartBtn.addEventListener('click', startGame);
 
-    // Initialisation (affichage de l'écran de démarrage)
+    // Affichage initial de l'écran de démarrage
     ball.style.left = '0px';
     ball.style.top = '0px';
     updatePaddlePosition(window.innerWidth / 2);
