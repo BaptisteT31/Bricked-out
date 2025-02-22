@@ -43,10 +43,9 @@
       position: absolute;
       background-color: #0095DD;
       border: 1px solid white;
-      box-sizing: border-box; /* Assure que la bordure est incluse dans les dimensions */
+      box-sizing: border-box;
       z-index: 6;
     }
-    
     /* Le texte caché, placé derrière les blocs */
     #hidden-text {
       position: absolute;
@@ -140,7 +139,7 @@
       config.paddleHeight = isMobile ? window.innerWidth * 0.02 : 10;
       config.blockWidth = isMobile ? window.innerWidth * 0.1 : 80;
       config.blockHeight = isMobile ? window.innerWidth * 0.025 : 20;
-      // On peut également ajuster d'autres paramètres si nécessaire
+      // Vous pouvez ajuster d'autres paramètres si nécessaire
     }
 
     // Appel initial pour adapter la configuration
@@ -247,8 +246,7 @@
       // Cacher les écrans de démarrage et de défaite
       startScreen.style.display = 'none';
       gameOverScreen.style.display = 'none';
-      
-      // Réajuster les dimensions responsives au démarrage (en cas de rotation ou redimensionnement)
+      // Réajuster la configuration responsive
       setResponsiveConfig();
       ball.style.width = config.ballSize + 'px';
       ball.style.height = config.ballSize + 'px';
@@ -262,7 +260,6 @@
       gameRunning = true;
       updatePosition();
     }
-    
 
     // Fonction principale de l'animation
     function updatePosition() {
@@ -313,12 +310,29 @@
         posY = paddleRect.top - config.ballSize;
       }
 
-      // Collision avec les blocs (et suppression)
-      const blocks = document.getElementsByClassName("block");
-      for (let i = blocks.length - 1; i >= 0; i--) {
-        if (checkCollision(blocks[i])) {
-          blocks[i].parentNode.removeChild(blocks[i]);
+      // Collision avec les blocs (impact sur la balle et suppression)
+      const bricks = document.getElementsByClassName("block");
+      for (let i = bricks.length - 1; i >= 0; i--) {
+        if (checkCollision(bricks[i])) {
+          const brickRect = bricks[i].getBoundingClientRect();
+          const ballRect = {
+            left: posX,
+            top: posY,
+            right: posX + config.ballSize,
+            bottom: posY + config.ballSize
+          };
+          // Calcul de l'overlap pour déterminer l'axe de rebond
+          const overlapX = Math.min(ballRect.right - brickRect.left, brickRect.right - ballRect.left);
+          const overlapY = Math.min(ballRect.bottom - brickRect.top, brickRect.bottom - ballRect.top);
+          if (overlapX < overlapY) {
+              velocityX = -velocityX;
+          } else {
+              velocityY = -velocityY;
+          }
+          bricks[i].parentNode.removeChild(bricks[i]);
           score++;
+          // On traite une collision par frame
+          break;
         }
       }
 
@@ -335,7 +349,7 @@
       lastMouseX = e.clientX;
     });
 
-    // Ajout de l'écouteur pour le tactile sur mobile
+    // Écouteur pour le tactile sur mobile
     document.addEventListener('touchmove', (e) => {
       e.preventDefault();
       const touch = e.touches[0];
