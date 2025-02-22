@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Brick Out - Jeu Responsive avec Secret</title>
+  <title>Brick Out - Jeu Responsive avec Secrets et Power‑ups</title>
   <style>
     body {
       margin: 0;
@@ -13,15 +13,15 @@
       position: relative;
       font-family: sans-serif;
     }
-    /* La balle */
-    #ball {
+    /* Les balles */
+    .ball {
       position: absolute;
       border-radius: 50%;
-      background-image: url('texture.png'); /* Image locale */
+      background-image: url('texture.png'); /* Texture associée */
       background-size: cover;
       z-index: 7;
     }
-    /* Le paddle */
+    /* La barre (paddle) */
     #paddle {
       position: absolute;
       pointer-events: none;
@@ -29,13 +29,13 @@
       background-color: rgba(0, 0, 255, 0.5);
       z-index: 8;
     }
-    /* Container des bricks */
+    /* Container des bricks et du texte secret */
     #blocks-container {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
-      height: 35%; /* Hauteur réservée aux bricks */
+      height: 35%;
       z-index: 5;
     }
     /* Les bricks */
@@ -46,7 +46,7 @@
       box-sizing: border-box;
       z-index: 6;
     }
-    /* Les caractères secrets */
+    /* Les caractères secrets cachés derrière certaines bricks */
     .secret-letter {
       position: absolute;
       display: flex;
@@ -54,17 +54,29 @@
       justify-content: center;
       overflow: hidden;
       z-index: 4;
-      /* Couleur initiale (par exemple gris) */
-      color: gray;
+      color: gray; /* initialement gris */
     }
-    /* Écran de démarrage, défaite et victoire (même container) */
+    /* Les power‑ups */
+    .power-up {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 30px;
+      font-size: 16px;
+      font-weight: bold;
+      color: white;
+      z-index: 9;
+    }
+    /* Écrans de démarrage, défaite et victoire */
     #start-screen, #game-over {
       position: absolute;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
-      background: rgba(0, 0, 0, 0.7);
+      background: rgba(0,0,0,0.7);
       color: white;
       display: flex;
       flex-direction: column;
@@ -86,13 +98,11 @@
   </style>
 </head>
 <body>
-  <!-- Balle et paddle -->
-  <div id="ball"></div>
+  <!-- La barre -->
   <div id="paddle"></div>
-  
-  <!-- Container des bricks -->
+  <!-- Container des bricks et secrets -->
   <div id="blocks-container"></div>
-  
+  <!-- Les balles seront créées dynamiquement -->
   <!-- Écran de démarrage / victoire / défaite -->
   <div id="start-screen">
     <p>Bienvenue ! Appuyez sur ▶ Jouer pour commencer.</p>
@@ -104,33 +114,40 @@
   </div>
 
   <script>
-    // Configuration centralisée
+    // Configuration centralisée (modifiez les valeurs ici pour ajuster le jeu)
     const config = {
-      ballSize: 50,                   // Taille de la balle (en pixels)
+      ballSize: 50,                   // Taille de la balle en pixels
       ballInitialSpeed: 3,            // Vitesse initiale de la balle
-      paddleWidth: 100,               // Largeur du paddle
-      paddleHeight: 10,               // Hauteur du paddle
+      paddleWidth: 100,               // Largeur de la barre
+      paddleHeight: 10,               // Hauteur de la barre
       ballSpawnVerticalRatio: 0.33,   // La balle apparaît dans le tiers supérieur
-      paddleVerticalPositionRatio: 0.66, // Le paddle se place à 66% de la hauteur
-      extraSpeedFactor: 0.2,          // Influence de la vitesse horizontale du paddle sur la balle
+      paddleVerticalPositionRatio: 0.66, // La barre se place à 66% de la hauteur
+      extraSpeedFactor: 0.2,          // Influence de la vitesse de la barre sur le rebond
       bounceAngleMax: Math.PI / 3,    // Angle maximum de rebond (60°)
-      speedIncreaseFactor: 0.05,      // Augmentation de la vitesse de la balle au rebond sur le plafond
-      // Configuration des bricks
-      blockRows: 5,                   // Nombre de lignes de bricks
-      blockCols: 8,                   // Nombre de colonnes de bricks
-      blockWidth: 100,                // Largeur d'une brick
-      blockHeight: 30,                // Hauteur d'une brick
-      blockGap: 5,                    // Espace entre les bricks
-      secretText: "A1B2"              // Texte secret composé de 4 caractères
+      speedIncreaseFactor: 0.05,      // Augmentation de vitesse lors du rebond sur le plafond
+      // Configuration des bricks et secrets
+      blockRows: 5,
+      blockCols: 8,
+      blockWidth: 100,
+      blockHeight: 30,
+      blockGap: 5,
+      secretText: "A1B2",             // Code secret (4 caractères)
+      // Configuration des power‑ups
+      powerUpSize: 30,                // Taille du power‑up
+      powerUpSpeed: 3,                // Vitesse de chute (pixels/frame)
+      powerUpDropChance: 0.2          // 20% de chance qu'un brick lâche un power‑up
     };
 
-    // Variables globales pour les secrets
-    let secretFound = 0;              // Nombre de secrets trouvés
-    const secretTotal = config.secretText.length; // Doit être 4
-    // Tableaux pour associer chaque secret à son élément
-    let secretElements = [];         
+    // Variables globales pour le secret
+    let secretFound = 0;
+    const secretTotal = config.secretText.length;
+    let secretElements = []; // Pour stocker les éléments de lettres secrètes
 
-    // Fonction pour adapter les dimensions en fonction de l'écran (responsive)
+    // Variables globales pour la gestion des balles et power‑ups
+    let balls = [];      // Chaque balle est un objet {posX, posY, velocityX, velocityY, element}
+    let powerUps = [];   // Chaque power‑up est un objet {posX, posY, type, element}
+
+    // Ajustement responsive
     function setResponsiveConfig() {
       const isMobile = window.innerWidth < 600;
       config.ballSize = isMobile ? window.innerWidth * 0.1 : 50;
@@ -139,10 +156,10 @@
       config.blockWidth = isMobile ? window.innerWidth * 0.12 : 100;
       config.blockHeight = isMobile ? window.innerWidth * 0.04 : 30;
       config.blockGap = isMobile ? 3 : 5;
+      config.powerUpSize = isMobile ? window.innerWidth * 0.05 : 30;
     }
     setResponsiveConfig();
 
-    const ball = document.getElementById('ball');
     const paddle = document.getElementById('paddle');
     const blocksContainer = document.getElementById('blocks-container');
     const startScreen = document.getElementById('start-screen');
@@ -151,33 +168,65 @@
     const restartBtn = document.getElementById('restart-btn');
     const gameOverMessage = document.getElementById('game-over-message');
 
-    // Appliquer les dimensions de la balle et du paddle
-    ball.style.width = config.ballSize + 'px';
-    ball.style.height = config.ballSize + 'px';
+    // Appliquer les dimensions du paddle
     paddle.style.width = config.paddleWidth + 'px';
     paddle.style.height = config.paddleHeight + 'px';
 
-    let posX, posY, velocityX, velocityY;
-    const ballRadius = config.ballSize / 2;
-    let score = 0;  // Nombre de bricks détruits
-
-    // Variables pour suivre la vitesse horizontale du paddle
+    let score = 0;
     let lastMouseX = window.innerWidth / 2;
     let paddleSpeed = 0;
     let gameRunning = false;
 
-    // Crée la grille de bricks et positionne les lettres secrètes sur 4 bricks aléatoires
+    // Création d'une nouvelle balle et ajout au DOM
+    function createBall(x, y, velocityX, velocityY) {
+      const ballEl = document.createElement('div');
+      ballEl.className = 'ball';
+      ballEl.style.width = config.ballSize + 'px';
+      ballEl.style.height = config.ballSize + 'px';
+      ballEl.style.left = x + 'px';
+      ballEl.style.top = y + 'px';
+      document.body.appendChild(ballEl);
+      return { posX: x, posY: y, velocityX: velocityX, velocityY: velocityY, element: ballEl };
+    }
+
+    // Réinitialise les balles (on supprime toutes et on en crée une initiale)
+    function resetBalls() {
+      balls.forEach(ball => ball.element.remove());
+      balls = [];
+      let x = Math.random() * (window.innerWidth - config.ballSize);
+      let y = Math.random() * ((window.innerHeight * config.ballSpawnVerticalRatio) - config.ballSize);
+      balls.push(createBall(x, y, config.ballInitialSpeed, config.ballInitialSpeed));
+    }
+
+    // Positionne la barre selon la coordonnée X (la coordonnée Y est fixée par la config)
+    function updatePaddlePosition(x) {
+      paddle.style.left = x + 'px';
+      paddle.style.top = (window.innerHeight * config.paddleVerticalPositionRatio) + 'px';
+    }
+
+    // Vérifie la collision entre une balle et un élément (brick, paddle ou power‑up)
+    function checkCollision(ball, element) {
+      const ballRadius = config.ballSize / 2;
+      const ballCenterX = ball.posX + ballRadius;
+      const ballCenterY = ball.posY + ballRadius;
+      const rect = element.getBoundingClientRect();
+      const closestX = Math.max(rect.left, Math.min(ballCenterX, rect.right));
+      const closestY = Math.max(rect.top, Math.min(ballCenterY, rect.bottom));
+      const distanceX = ballCenterX - closestX;
+      const distanceY = ballCenterY - closestY;
+      return (distanceX * distanceX + distanceY * distanceY) < (ballRadius * ballRadius);
+    }
+
+    // Crée la grille de bricks et positionne 4 lettres secrètes sur 4 bricks aléatoires
     function createBlocks() {
       blocksContainer.innerHTML = "";
       secretElements = [];
       secretFound = 0;
       let blocksData = [];
       let brickIndex = 0;
-      // Calcul pour centrer la grille
       const totalWidth = config.blockCols * config.blockWidth + (config.blockCols - 1) * config.blockGap;
       const offsetX = (window.innerWidth - totalWidth) / 2;
-      const offsetY = 20; // marge depuis le haut
-      // Création des bricks et stockage de leurs données
+      const offsetY = 20;
       for (let row = 0; row < config.blockRows; row++) {
         for (let col = 0; col < config.blockCols; col++) {
           const block = document.createElement('div');
@@ -188,14 +237,13 @@
           block.style.height = config.blockHeight + "px";
           block.style.left = left + "px";
           block.style.top = top + "px";
-          // Attribuer un index à chaque brick
           block.setAttribute('data-index', brickIndex);
           blocksContainer.appendChild(block);
-          blocksData.push({element: block, left: left, top: top, index: brickIndex});
+          blocksData.push({ element: block, left: left, top: top, index: brickIndex });
           brickIndex++;
         }
       }
-      // Sélectionner aléatoirement 4 indices distincts parmi les bricks
+      // Sélectionner 4 indices distincts aléatoires parmi les bricks
       let secretIndices = [];
       while (secretIndices.length < secretTotal && secretIndices.length < blocksData.length) {
         let randIndex = Math.floor(Math.random() * blocksData.length);
@@ -203,12 +251,10 @@
           secretIndices.push(randIndex);
         }
       }
-      // Pour chaque brick sélectionnée, marquer la brick et créer l'élément secret
+      // Pour chaque brick sélectionnée, marquer la brick et créer l'élément secret-letter
       for (let i = 0; i < secretIndices.length; i++) {
         const data = blocksData[secretIndices[i]];
-        // Marquer la brick avec l'ordre secret (0 à 3)
         data.element.setAttribute('data-secret', i);
-        // Créer l'élément secret-letter associé
         const letter = document.createElement('div');
         letter.className = "secret-letter";
         letter.textContent = config.secretText[i];
@@ -216,164 +262,200 @@
         letter.style.top = data.top + "px";
         letter.style.width = config.blockWidth + "px";
         letter.style.height = config.blockHeight + "px";
-        // Initialement, la couleur est gris (déjà défini dans CSS) ; elle passera en noir quand découvert
+        letter.style.fontSize = (config.blockHeight * 0.8) + "px";
         letter.setAttribute('data-secret-order', i);
         blocksContainer.appendChild(letter);
         secretElements.push(letter);
       }
     }
 
-    // Réinitialise ou initialise la position de la balle
-    function resetBall() {
-      posX = Math.random() * (window.innerWidth - config.ballSize);
-      posY = Math.random() * ((window.innerHeight * config.ballSpawnVerticalRatio) - config.ballSize);
-      velocityX = config.ballInitialSpeed;
-      velocityY = config.ballInitialSpeed;
+    // Crée et fait tomber un power‑up depuis la position (x, y)
+    function dropPowerUp(x, y) {
+      const types = ["extraBall", "resetSpeed", "increasePaddle"];
+      const type = types[Math.floor(Math.random() * types.length)];
+      const puEl = document.createElement('div');
+      puEl.className = "power-up";
+      puEl.style.width = config.powerUpSize + "px";
+      puEl.style.height = config.powerUpSize + "px";
+      puEl.style.left = x + "px";
+      puEl.style.top = y + "px";
+      if (type === "extraBall") {
+        puEl.style.backgroundColor = "green";
+        puEl.textContent = "+";
+      } else if (type === "resetSpeed") {
+        puEl.style.backgroundColor = "blue";
+        puEl.textContent = "S";
+      } else if (type === "increasePaddle") {
+        puEl.style.backgroundColor = "orange";
+        puEl.textContent = "P";
+      }
+      document.body.appendChild(puEl);
+      powerUps.push({ posX: x, posY: y, type: type, element: puEl });
     }
 
-    // Positionne le paddle en fonction de la position X et selon la config pour Y
-    function updatePaddlePosition(x) {
-      paddle.style.left = x + 'px';
-      paddle.style.top = (window.innerHeight * config.paddleVerticalPositionRatio) + 'px';
+    // Applique l'effet d'un power‑up selon son type
+    function triggerPowerUp(type) {
+      if (type === "extraBall") {
+        // Ajoute une nouvelle balle à la position de la barre
+        const paddleRect = paddle.getBoundingClientRect();
+        let x = paddleRect.left + paddleRect.width / 2 - config.ballSize/2;
+        let y = paddleRect.top - config.ballSize - 5;
+        balls.push(createBall(x, y, config.ballInitialSpeed, -config.ballInitialSpeed));
+      } else if (type === "resetSpeed") {
+        // Réinitialise la vitesse de toutes les balles à la vitesse de base en conservant leur sens
+        balls.forEach(ball => {
+          let signX = Math.sign(ball.velocityX) || 1;
+          let signY = Math.sign(ball.velocityY) || 1;
+          ball.velocityX = config.ballInitialSpeed * signX;
+          ball.velocityY = config.ballInitialSpeed * signY;
+        });
+      } else if (type === "increasePaddle") {
+        // Double la largeur de la barre et met à jour son style
+        config.paddleWidth *= 2;
+        paddle.style.width = config.paddleWidth + "px";
+      }
     }
 
-    // Détecte la collision entre la balle (cercle) et un élément rectangulaire
-    function checkCollision(element) {
-      const ballCenterX = posX + ballRadius;
-      const ballCenterY = posY + ballRadius;
-      const rect = element.getBoundingClientRect();
-      const closestX = Math.max(rect.left, Math.min(ballCenterX, rect.right));
-      const closestY = Math.max(rect.top, Math.min(ballCenterY, rect.bottom));
-      const distanceX = ballCenterX - closestX;
-      const distanceY = ballCenterY - closestY;
-      return (distanceX * distanceX + distanceY * distanceY) < (ballRadius * ballRadius);
-    }
-
-    // Fonction de victoire
+    // Affiche l'écran de victoire et arrête le jeu
     function victory() {
       gameRunning = false;
       gameOverMessage.textContent = "Victoire ! Le code est : " + config.secretText;
       gameOverScreen.style.display = 'flex';
     }
-
-    // Fonction de fin de partie (défaite)
+    // En cas d'échec (si toutes les balles disparaissent)
     function gameOver() {
       gameRunning = false;
       gameOverMessage.textContent = "Perdu ! Fais un effort 👉\nScore : " + score + " bricks détruits";
       gameOverScreen.style.display = 'flex';
     }
 
-    // Fonction pour démarrer le jeu
-    function startGame() {
-      startScreen.style.display = 'none';
-      gameOverScreen.style.display = 'none';
-      setResponsiveConfig();
-      ball.style.width = config.ballSize + 'px';
-      ball.style.height = config.ballSize + 'px';
-      paddle.style.width = config.paddleWidth + 'px';
-      paddle.style.height = config.paddleHeight + 'px';
-      score = 0;
-      createBlocks();
-      resetBall();
-      lastMouseX = window.innerWidth / 2;
-      updatePaddlePosition(window.innerWidth / 2);
-      gameRunning = true;
-      updatePosition();
-    }
-
-    // Fonction principale de l'animation
+    // Boucle d'animation principale
     function updatePosition() {
       if (!gameRunning) return;
       
-      let nextPosX = posX + velocityX;
-      let nextPosY = posY + velocityY;
-
-      // Rebonds sur les parois latérales
-      if (nextPosX <= 0) {
-        nextPosX = 0;
-        velocityX = -velocityX;
-      } else if (nextPosX + config.ballSize >= window.innerWidth) {
-        nextPosX = window.innerWidth - config.ballSize;
-        velocityX = -velocityX;
-      }
-
-      // Rebonds sur le plafond
-      if (nextPosY <= 0) {
-        nextPosY = 0;
-        velocityY = -velocityY;
-        velocityX *= (1 + config.speedIncreaseFactor);
-        velocityY *= (1 + config.speedIncreaseFactor);
-      }
-
-      // Vérification du sol (défaite)
-      if (nextPosY + config.ballSize >= window.innerHeight) {
-        gameOver();
-        return;
-      }
-
-      posX = nextPosX;
-      posY = nextPosY;
-
-      // Collision avec le paddle (uniquement si la balle descend)
-      if (velocityY > 0 && checkCollision(paddle)) {
-        const paddleRect = paddle.getBoundingClientRect();
-        const paddleCenterX = paddleRect.left + paddleRect.width / 2;
-        const ballCenterX = posX + ballRadius;
-        let hitFactor = (ballCenterX - paddleCenterX) / (paddleRect.width / 2);
-        hitFactor = Math.max(-1, Math.min(1, hitFactor));
-        const bounceAngle = hitFactor * config.bounceAngleMax;
-        const currentSpeed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-        const extraSpeed = Math.abs(paddleSpeed) * config.extraSpeedFactor;
-        const newSpeed = currentSpeed + extraSpeed;
-        velocityX = newSpeed * Math.sin(bounceAngle);
-        velocityY = -Math.abs(newSpeed * Math.cos(bounceAngle));
-        posY = paddleRect.top - config.ballSize;
-      }
-
-      // Collision avec les bricks
-      const bricks = document.getElementsByClassName("block");
-      for (let i = bricks.length - 1; i >= 0; i--) {
-        if (checkCollision(bricks[i])) {
-          const brickRect = bricks[i].getBoundingClientRect();
-          const ballRect = {
-            left: posX,
-            top: posY,
-            right: posX + config.ballSize,
-            bottom: posY + config.ballSize
-          };
-          const overlapX = Math.min(ballRect.right - brickRect.left, brickRect.right - ballRect.left);
-          const overlapY = Math.min(ballRect.bottom - brickRect.top, brickRect.bottom - ballRect.top);
-          if (overlapX < overlapY) {
-            velocityX = -velocityX;
-          } else {
-            velocityY = -velocityY;
+      // Met à jour chaque balle
+      for (let b = balls.length - 1; b >= 0; b--) {
+        let ball = balls[b];
+        let nextX = ball.posX + ball.velocityX;
+        let nextY = ball.posY + ball.velocityY;
+        
+        // Rebonds sur les parois latérales
+        if (nextX <= 0) {
+          nextX = 0;
+          ball.velocityX = -ball.velocityX;
+        } else if (nextX + config.ballSize >= window.innerWidth) {
+          nextX = window.innerWidth - config.ballSize;
+          ball.velocityX = -ball.velocityX;
+        }
+        // Rebonds sur le plafond
+        if (nextY <= 0) {
+          nextY = 0;
+          ball.velocityY = -ball.velocityY;
+          ball.velocityX *= (1 + config.speedIncreaseFactor);
+          ball.velocityY *= (1 + config.speedIncreaseFactor);
+        }
+        // Si la balle touche le sol, on la retire
+        if (nextY + config.ballSize >= window.innerHeight) {
+          ball.element.remove();
+          balls.splice(b, 1);
+          if (balls.length === 0) {
+            gameOver();
+            return;
           }
-          // Vérifier si cette brick était "secret"
-          if (bricks[i].hasAttribute("data-secret")) {
-            const secretOrder = bricks[i].getAttribute("data-secret");
-            // Rechercher l'élément secret correspondant et changer sa couleur en noir
-            secretElements.forEach(el => {
-              if (el.getAttribute("data-secret-order") === secretOrder) {
-                el.style.color = "black";
-              }
-            });
-            secretFound++;
-            // Si tous les secrets ont été révélés, déclencher la victoire
-            if (secretFound === secretTotal) {
-              victory();
-              return;
+          continue;
+        }
+        
+        ball.posX = nextX;
+        ball.posY = nextY;
+        
+        // Collision avec le paddle
+        if (ball.velocityY > 0 && checkCollision(ball, paddle)) {
+          const paddleRect = paddle.getBoundingClientRect();
+          const paddleCenterX = paddleRect.left + paddleRect.width / 2;
+          const ballCenterX = ball.posX + config.ballSize/2;
+          let hitFactor = (ballCenterX - paddleCenterX) / (paddleRect.width/2);
+          hitFactor = Math.max(-1, Math.min(1, hitFactor));
+          const bounceAngle = hitFactor * config.bounceAngleMax;
+          const currentSpeed = Math.sqrt(ball.velocityX*ball.velocityX + ball.velocityY*ball.velocityY);
+          const extraSpeed = Math.abs(paddleSpeed)*config.extraSpeedFactor;
+          const newSpeed = currentSpeed + extraSpeed;
+          ball.velocityX = newSpeed * Math.sin(bounceAngle);
+          ball.velocityY = -Math.abs(newSpeed * Math.cos(bounceAngle));
+          ball.posY = paddleRect.top - config.ballSize;
+        }
+        
+        // Collision avec les bricks
+        const bricks = document.getElementsByClassName("block");
+        for (let i = bricks.length - 1; i >= 0; i--) {
+          if (checkCollision(ball, bricks[i])) {
+            const brickRect = bricks[i].getBoundingClientRect();
+            const ballRect = {
+              left: ball.posX,
+              top: ball.posY,
+              right: ball.posX + config.ballSize,
+              bottom: ball.posY + config.ballSize
+            };
+            const overlapX = Math.min(ballRect.right - brickRect.left, brickRect.right - ballRect.left);
+            const overlapY = Math.min(ballRect.bottom - brickRect.top, brickRect.bottom - ballRect.top);
+            if (overlapX < overlapY) {
+              ball.velocityX = -ball.velocityX;
+            } else {
+              ball.velocityY = -ball.velocityY;
             }
+            // Si la brick était "secret", on change la couleur de la lettre associée en noir
+            if (bricks[i].hasAttribute("data-secret")) {
+              const secretOrder = bricks[i].getAttribute("data-secret");
+              secretElements.forEach(el => {
+                if (el.getAttribute("data-secret-order") === secretOrder) {
+                  el.style.color = "black";
+                }
+              });
+              secretFound++;
+              if (secretFound === secretTotal) {
+                victory();
+                return;
+              }
+            }
+            bricks[i].parentNode.removeChild(bricks[i]);
+            score++;
+            // Avec une probabilité donnée, lâcher un power‑up
+            if (Math.random() < config.powerUpDropChance) {
+              dropPowerUp(brickRect.left, brickRect.top);
+            }
+            // On traite une collision de brick par balle par frame
+            break;
           }
-          bricks[i].parentNode.removeChild(bricks[i]);
-          score++;
-          // Traiter une collision par frame
-          break;
+        }
+        
+        // Met à jour la position de la balle dans le DOM
+        ball.element.style.left = ball.posX + "px";
+        ball.element.style.top = ball.posY + "px";
+      }
+      
+      // Mise à jour des power‑ups
+      for (let p = powerUps.length - 1; p >= 0; p--) {
+        let pu = powerUps[p];
+        pu.posY += config.powerUpSpeed;
+        pu.element.style.top = pu.posY + "px";
+        const puRect = pu.element.getBoundingClientRect();
+        const paddleRect = paddle.getBoundingClientRect();
+        if (
+          puRect.bottom > paddleRect.top &&
+          puRect.top < paddleRect.bottom &&
+          puRect.right > paddleRect.left &&
+          puRect.left < paddleRect.right
+        ) {
+          triggerPowerUp(pu.type);
+          pu.element.remove();
+          powerUps.splice(p, 1);
+          continue;
+        }
+        if (pu.posY > window.innerHeight) {
+          pu.element.remove();
+          powerUps.splice(p, 1);
         }
       }
-
-      ball.style.left = posX + 'px';
-      ball.style.top = posY + 'px';
-
+      
       requestAnimationFrame(updatePosition);
     }
 
@@ -383,8 +465,7 @@
       paddleSpeed = e.clientX - lastMouseX;
       lastMouseX = e.clientX;
     });
-
-    // Écouteur pour le tactile sur mobile
+    // Pour mobile (déplacement tactile)
     document.addEventListener('touchmove', (e) => {
       e.preventDefault();
       const touch = e.touches[0];
@@ -392,13 +473,38 @@
       paddleSpeed = touch.clientX - lastMouseX;
       lastMouseX = touch.clientX;
     }, { passive: false });
-
-    playBtn.addEventListener('click', startGame);
-    restartBtn.addEventListener('click', startGame);
-
-    // Affichage initial
-    ball.style.left = '0px';
-    ball.style.top = '0px';
+    
+    // Boutons Play et Recommencer
+    playBtn.addEventListener('click', () => {
+      startScreen.style.display = 'none';
+      gameOverScreen.style.display = 'none';
+      setResponsiveConfig();
+      paddle.style.width = config.paddleWidth + 'px';
+      paddle.style.height = config.paddleHeight + 'px';
+      score = 0;
+      createBlocks();
+      resetBalls();
+      lastMouseX = window.innerWidth / 2;
+      updatePaddlePosition(window.innerWidth / 2);
+      gameRunning = true;
+      updatePosition();
+    });
+    restartBtn.addEventListener('click', () => {
+      startScreen.style.display = 'none';
+      gameOverScreen.style.display = 'none';
+      setResponsiveConfig();
+      paddle.style.width = config.paddleWidth + 'px';
+      paddle.style.height = config.paddleHeight + 'px';
+      score = 0;
+      createBlocks();
+      resetBalls();
+      lastMouseX = window.innerWidth / 2;
+      updatePaddlePosition(window.innerWidth / 2);
+      gameRunning = true;
+      updatePosition();
+    });
+    
+    // Affichage initial de la barre et de l'écran de démarrage
     updatePaddlePosition(window.innerWidth / 2);
     startScreen.style.display = 'flex';
     gameOverScreen.style.display = 'none';
