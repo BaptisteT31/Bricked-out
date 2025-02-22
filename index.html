@@ -242,6 +242,10 @@
 
     // Fonction pour démarrer le jeu
     function startGame() {
+      // Cacher les écrans de démarrage et de défaite
+      startScreen.style.display = 'none';
+      gameOverScreen.style.display = 'none';
+      
       // Réajuster les dimensions responsives au démarrage (en cas de rotation ou redimensionnement)
       setResponsiveConfig();
       ball.style.width = config.ballSize + 'px';
@@ -256,6 +260,7 @@
       gameRunning = true;
       updatePosition();
     }
+    
 
     // Fonction principale de l'animation
     function updatePosition() {
