@@ -35,7 +35,7 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 35%; /* Un peu plus de hauteur pour plus de lignes */
+      height: 35%; /* Hauteur réservée aux bricks */
       z-index: 5;
     }
     /* Les bricks */
@@ -48,15 +48,16 @@
     }
     /* Les caractères secrets */
     .secret-letter {
-      /* Ces éléments seront positionnés exactement derrière certaines bricks */
       position: absolute;
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      z-index: 3;
+      z-index: 4;
+      /* Couleur initiale (par exemple gris) */
+      color: gray;
     }
-    /* Écran de démarrage et de défaite */
+    /* Écran de démarrage, défaite et victoire (même container) */
     #start-screen, #game-over {
       position: absolute;
       top: 0;
@@ -92,15 +93,13 @@
   <!-- Container des bricks -->
   <div id="blocks-container"></div>
   
-  <!-- Écran de démarrage -->
+  <!-- Écran de démarrage / victoire / défaite -->
   <div id="start-screen">
     <p>Bienvenue ! Appuyez sur ▶ Jouer pour commencer.</p>
     <button id="play-btn">▶ Jouer</button>
   </div>
-  
-  <!-- Écran de défaite -->
-  <div id="game-over">
-    <p id="game-over-message">Perdu ! fais un effort 👉</p>
+  <div id="game-over" style="display:none;">
+    <p id="game-over-message"></p>
     <button id="restart-btn">Recommencer</button>
   </div>
 
@@ -117,13 +116,19 @@
       bounceAngleMax: Math.PI / 3,    // Angle maximum de rebond (60°)
       speedIncreaseFactor: 0.05,      // Augmentation de la vitesse de la balle au rebond sur le plafond
       // Configuration des bricks
-      blockRows: 5,                   // Nombre de lignes de bricks (augmenté)
-      blockCols: 8,                   // Nombre de colonnes
-      blockWidth: 100,                // Largeur d'une brick (augmentée)
-      blockHeight: 30,                // Hauteur d'une brick (augmentée)
-      blockGap: 5,                    // Espace réduit entre les bricks
+      blockRows: 5,                   // Nombre de lignes de bricks
+      blockCols: 8,                   // Nombre de colonnes de bricks
+      blockWidth: 100,                // Largeur d'une brick
+      blockHeight: 30,                // Hauteur d'une brick
+      blockGap: 5,                    // Espace entre les bricks
       secretText: "A1B2"              // Texte secret composé de 4 caractères
     };
+
+    // Variables globales pour les secrets
+    let secretFound = 0;              // Nombre de secrets trouvés
+    const secretTotal = config.secretText.length; // Doit être 4
+    // Tableaux pour associer chaque secret à son élément
+    let secretElements = [];         
 
     // Fonction pour adapter les dimensions en fonction de l'écran (responsive)
     function setResponsiveConfig() {
@@ -133,7 +138,6 @@
       config.paddleHeight = isMobile ? window.innerWidth * 0.02 : 10;
       config.blockWidth = isMobile ? window.innerWidth * 0.12 : 100;
       config.blockHeight = isMobile ? window.innerWidth * 0.04 : 30;
-      // Vous pouvez ajuster blockGap également si nécessaire
       config.blockGap = isMobile ? 3 : 5;
     }
     setResponsiveConfig();
@@ -162,14 +166,18 @@
     let paddleSpeed = 0;
     let gameRunning = false;
 
-    // Crée la grille de bricks et positionne les lettres secrètes derrière 4 cases aléatoires
+    // Crée la grille de bricks et positionne les lettres secrètes sur 4 bricks aléatoires
     function createBlocks() {
       blocksContainer.innerHTML = "";
-      let blocksData = []; // Pour stocker les informations de chaque brick
-      // Calculer l'espace total pour centrer la grille
+      secretElements = [];
+      secretFound = 0;
+      let blocksData = [];
+      let brickIndex = 0;
+      // Calcul pour centrer la grille
       const totalWidth = config.blockCols * config.blockWidth + (config.blockCols - 1) * config.blockGap;
       const offsetX = (window.innerWidth - totalWidth) / 2;
       const offsetY = 20; // marge depuis le haut
+      // Création des bricks et stockage de leurs données
       for (let row = 0; row < config.blockRows; row++) {
         for (let col = 0; col < config.blockCols; col++) {
           const block = document.createElement('div');
@@ -180,33 +188,38 @@
           block.style.height = config.blockHeight + "px";
           block.style.left = left + "px";
           block.style.top = top + "px";
+          // Attribuer un index à chaque brick
+          block.setAttribute('data-index', brickIndex);
           blocksContainer.appendChild(block);
-          blocksData.push({element: block, left: left, top: top});
+          blocksData.push({element: block, left: left, top: top, index: brickIndex});
+          brickIndex++;
         }
       }
-      // Sélectionner 4 indices distincts aléatoires parmi les bricks
+      // Sélectionner aléatoirement 4 indices distincts parmi les bricks
       let secretIndices = [];
-      while (secretIndices.length < 4 && secretIndices.length < blocksData.length) {
+      while (secretIndices.length < secretTotal && secretIndices.length < blocksData.length) {
         let randIndex = Math.floor(Math.random() * blocksData.length);
         if (!secretIndices.includes(randIndex)) {
           secretIndices.push(randIndex);
         }
       }
-      // Pour chaque indice sélectionné, créer un élément secret positionné exactement sur la brick
+      // Pour chaque brick sélectionnée, marquer la brick et créer l'élément secret
       for (let i = 0; i < secretIndices.length; i++) {
         const data = blocksData[secretIndices[i]];
+        // Marquer la brick avec l'ordre secret (0 à 3)
+        data.element.setAttribute('data-secret', i);
+        // Créer l'élément secret-letter associé
         const letter = document.createElement('div');
         letter.className = "secret-letter";
-        letter.textContent = config.secretText[i]; // Un caractère pour chaque brick sélectionnée
+        letter.textContent = config.secretText[i];
         letter.style.left = data.left + "px";
         letter.style.top = data.top + "px";
         letter.style.width = config.blockWidth + "px";
         letter.style.height = config.blockHeight + "px";
-        letter.style.fontSize = (config.blockHeight * 0.8) + "px";
-        letter.style.color = "white";
-        letter.style.textAlign = "center";
-        letter.style.lineHeight = config.blockHeight + "px";
+        // Initialement, la couleur est gris (déjà défini dans CSS) ; elle passera en noir quand découvert
+        letter.setAttribute('data-secret-order', i);
         blocksContainer.appendChild(letter);
+        secretElements.push(letter);
       }
     }
 
@@ -236,19 +249,24 @@
       return (distanceX * distanceX + distanceY * distanceY) < (ballRadius * ballRadius);
     }
 
-    // Fonction de fin de partie
+    // Fonction de victoire
+    function victory() {
+      gameRunning = false;
+      gameOverMessage.textContent = "Victoire ! Le code est : " + config.secretText;
+      gameOverScreen.style.display = 'flex';
+    }
+
+    // Fonction de fin de partie (défaite)
     function gameOver() {
       gameRunning = false;
-      gameOverMessage.textContent = "Perdu ! fais un effort 👉\nScore : " + score + " bricks détruits";
+      gameOverMessage.textContent = "Perdu ! Fais un effort 👉\nScore : " + score + " bricks détruits";
       gameOverScreen.style.display = 'flex';
     }
 
     // Fonction pour démarrer le jeu
     function startGame() {
-      // Cacher les écrans de démarrage et de défaite
       startScreen.style.display = 'none';
       gameOverScreen.style.display = 'none';
-      // Réajuster la configuration responsive
       setResponsiveConfig();
       ball.style.width = config.ballSize + 'px';
       ball.style.height = config.ballSize + 'px';
@@ -287,7 +305,7 @@
         velocityY *= (1 + config.speedIncreaseFactor);
       }
 
-      // Vérification du sol (fin de partie)
+      // Vérification du sol (défaite)
       if (nextPosY + config.ballSize >= window.innerHeight) {
         gameOver();
         return;
@@ -296,7 +314,7 @@
       posX = nextPosX;
       posY = nextPosY;
 
-      // Collision avec le paddle (seulement si la balle descend)
+      // Collision avec le paddle (uniquement si la balle descend)
       if (velocityY > 0 && checkCollision(paddle)) {
         const paddleRect = paddle.getBoundingClientRect();
         const paddleCenterX = paddleRect.left + paddleRect.width / 2;
@@ -312,7 +330,7 @@
         posY = paddleRect.top - config.ballSize;
       }
 
-      // Collision avec les bricks (impact sur la balle et suppression)
+      // Collision avec les bricks
       const bricks = document.getElementsByClassName("block");
       for (let i = bricks.length - 1; i >= 0; i--) {
         if (checkCollision(bricks[i])) {
@@ -323,17 +341,32 @@
             right: posX + config.ballSize,
             bottom: posY + config.ballSize
           };
-          // Calcul de l'overlap pour déterminer l'axe de rebond
           const overlapX = Math.min(ballRect.right - brickRect.left, brickRect.right - ballRect.left);
           const overlapY = Math.min(ballRect.bottom - brickRect.top, brickRect.bottom - ballRect.top);
           if (overlapX < overlapY) {
-              velocityX = -velocityX;
+            velocityX = -velocityX;
           } else {
-              velocityY = -velocityY;
+            velocityY = -velocityY;
+          }
+          // Vérifier si cette brick était "secret"
+          if (bricks[i].hasAttribute("data-secret")) {
+            const secretOrder = bricks[i].getAttribute("data-secret");
+            // Rechercher l'élément secret correspondant et changer sa couleur en noir
+            secretElements.forEach(el => {
+              if (el.getAttribute("data-secret-order") === secretOrder) {
+                el.style.color = "black";
+              }
+            });
+            secretFound++;
+            // Si tous les secrets ont été révélés, déclencher la victoire
+            if (secretFound === secretTotal) {
+              victory();
+              return;
+            }
           }
           bricks[i].parentNode.removeChild(bricks[i]);
           score++;
-          // On ne traite qu'une collision par frame
+          // Traiter une collision par frame
           break;
         }
       }
@@ -360,11 +393,10 @@
       lastMouseX = touch.clientX;
     }, { passive: false });
 
-    // Gestion des boutons Play et Recommencer
     playBtn.addEventListener('click', startGame);
     restartBtn.addEventListener('click', startGame);
 
-    // Affichage initial de l'écran de démarrage
+    // Affichage initial
     ball.style.left = '0px';
     ball.style.top = '0px';
     updatePaddlePosition(window.innerWidth / 2);
