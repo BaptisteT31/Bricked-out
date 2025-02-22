@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Brick Out - Jeu Responsive</title>
+  <title>Brick Out - Jeu Responsive avec Secret</title>
   <style>
     body {
       margin: 0;
@@ -29,16 +29,16 @@
       background-color: rgba(0, 0, 255, 0.5);
       z-index: 8;
     }
-    /* Container des blocs et du texte caché */
+    /* Container des bricks */
     #blocks-container {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
-      height: 30%; /* Hauteur réservée aux blocs */
+      height: 35%; /* Un peu plus de hauteur pour plus de lignes */
       z-index: 5;
     }
-    /* Les blocs */
+    /* Les bricks */
     .block {
       position: absolute;
       background-color: #0095DD;
@@ -46,20 +46,15 @@
       box-sizing: border-box;
       z-index: 6;
     }
-    /* Le texte caché, placé derrière les blocs */
-    #hidden-text {
+    /* Les caractères secrets */
+    .secret-letter {
+      /* Ces éléments seront positionnés exactement derrière certaines bricks */
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 4;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 2em;
-      color: white;
-      pointer-events: none;
+      overflow: hidden;
+      z-index: 3;
     }
     /* Écran de démarrage et de défaite */
     #start-screen, #game-over {
@@ -94,10 +89,8 @@
   <div id="ball"></div>
   <div id="paddle"></div>
   
-  <!-- Container des blocs avec le texte caché derrière -->
-  <div id="blocks-container">
-    <div id="hidden-text">Le secret est révélé !</div>
-  </div>
+  <!-- Container des bricks -->
+  <div id="blocks-container"></div>
   
   <!-- Écran de démarrage -->
   <div id="start-screen">
@@ -114,35 +107,35 @@
   <script>
     // Configuration centralisée
     const config = {
-      // Ces valeurs par défaut seront recalculées pour les petits écrans
-      ballSize: 50,
-      ballInitialSpeed: 3,
-      paddleWidth: 100,
-      paddleHeight: 10,
-      ballSpawnVerticalRatio: 0.33,
-      paddleVerticalPositionRatio: 0.66,
-      extraSpeedFactor: 0.2,
-      bounceAngleMax: Math.PI / 3,
-      speedIncreaseFactor: 0.05,
-      blockRows: 3,
-      blockCols: 8,
-      blockWidth: 80,
-      blockHeight: 20,
-      blockGap: 10
+      ballSize: 50,                   // Taille de la balle (en pixels)
+      ballInitialSpeed: 3,            // Vitesse initiale de la balle
+      paddleWidth: 100,               // Largeur du paddle
+      paddleHeight: 10,               // Hauteur du paddle
+      ballSpawnVerticalRatio: 0.33,   // La balle apparaît dans le tiers supérieur
+      paddleVerticalPositionRatio: 0.66, // Le paddle se place à 66% de la hauteur
+      extraSpeedFactor: 0.2,          // Influence de la vitesse horizontale du paddle sur la balle
+      bounceAngleMax: Math.PI / 3,    // Angle maximum de rebond (60°)
+      speedIncreaseFactor: 0.05,      // Augmentation de la vitesse de la balle au rebond sur le plafond
+      // Configuration des bricks
+      blockRows: 5,                   // Nombre de lignes de bricks (augmenté)
+      blockCols: 8,                   // Nombre de colonnes
+      blockWidth: 100,                // Largeur d'une brick (augmentée)
+      blockHeight: 30,                // Hauteur d'une brick (augmentée)
+      blockGap: 5,                    // Espace réduit entre les bricks
+      secretText: "A1B2"              // Texte secret composé de 4 caractères
     };
 
-    // Fonction pour adapter les dimensions en fonction de l'écran
+    // Fonction pour adapter les dimensions en fonction de l'écran (responsive)
     function setResponsiveConfig() {
       const isMobile = window.innerWidth < 600;
       config.ballSize = isMobile ? window.innerWidth * 0.1 : 50;
       config.paddleWidth = isMobile ? window.innerWidth * 0.2 : 100;
       config.paddleHeight = isMobile ? window.innerWidth * 0.02 : 10;
-      config.blockWidth = isMobile ? window.innerWidth * 0.1 : 80;
-      config.blockHeight = isMobile ? window.innerWidth * 0.025 : 20;
-      // Vous pouvez ajuster d'autres paramètres si nécessaire
+      config.blockWidth = isMobile ? window.innerWidth * 0.12 : 100;
+      config.blockHeight = isMobile ? window.innerWidth * 0.04 : 30;
+      // Vous pouvez ajuster blockGap également si nécessaire
+      config.blockGap = isMobile ? 3 : 5;
     }
-
-    // Appel initial pour adapter la configuration
     setResponsiveConfig();
 
     const ball = document.getElementById('ball');
@@ -162,49 +155,58 @@
 
     let posX, posY, velocityX, velocityY;
     const ballRadius = config.ballSize / 2;
-    let score = 0;  // Nombre de blocs détruits
+    let score = 0;  // Nombre de bricks détruits
 
     // Variables pour suivre la vitesse horizontale du paddle
     let lastMouseX = window.innerWidth / 2;
     let paddleSpeed = 0;
     let gameRunning = false;
 
-    // Crée les blocs et les place dans le container, en recréant le texte caché derrière
+    // Crée la grille de bricks et positionne les lettres secrètes derrière 4 cases aléatoires
     function createBlocks() {
       blocksContainer.innerHTML = "";
-      // Création du texte caché
-      const ht = document.createElement('div');
-      ht.id = "hidden-text";
-      ht.textContent = "Le secret est révélé !";
-      ht.style.position = "absolute";
-      ht.style.top = "0";
-      ht.style.left = "0";
-      ht.style.width = "100%";
-      ht.style.height = "100%";
-      ht.style.zIndex = "4";
-      ht.style.display = "flex";
-      ht.style.alignItems = "center";
-      ht.style.justifyContent = "center";
-      ht.style.fontSize = "2em";
-      ht.style.color = "white";
-      ht.style.pointerEvents = "none";
-      blocksContainer.appendChild(ht);
-
-      // Calcul pour centrer la grille de blocs
+      let blocksData = []; // Pour stocker les informations de chaque brick
+      // Calculer l'espace total pour centrer la grille
       const totalWidth = config.blockCols * config.blockWidth + (config.blockCols - 1) * config.blockGap;
       const offsetX = (window.innerWidth - totalWidth) / 2;
       const offsetY = 20; // marge depuis le haut
-
       for (let row = 0; row < config.blockRows; row++) {
         for (let col = 0; col < config.blockCols; col++) {
           const block = document.createElement('div');
           block.className = "block";
+          const left = offsetX + col * (config.blockWidth + config.blockGap);
+          const top = offsetY + row * (config.blockHeight + config.blockGap);
           block.style.width = config.blockWidth + "px";
           block.style.height = config.blockHeight + "px";
-          block.style.left = (offsetX + col * (config.blockWidth + config.blockGap)) + "px";
-          block.style.top = (offsetY + row * (config.blockHeight + config.blockGap)) + "px";
+          block.style.left = left + "px";
+          block.style.top = top + "px";
           blocksContainer.appendChild(block);
+          blocksData.push({element: block, left: left, top: top});
         }
+      }
+      // Sélectionner 4 indices distincts aléatoires parmi les bricks
+      let secretIndices = [];
+      while (secretIndices.length < 4 && secretIndices.length < blocksData.length) {
+        let randIndex = Math.floor(Math.random() * blocksData.length);
+        if (!secretIndices.includes(randIndex)) {
+          secretIndices.push(randIndex);
+        }
+      }
+      // Pour chaque indice sélectionné, créer un élément secret positionné exactement sur la brick
+      for (let i = 0; i < secretIndices.length; i++) {
+        const data = blocksData[secretIndices[i]];
+        const letter = document.createElement('div');
+        letter.className = "secret-letter";
+        letter.textContent = config.secretText[i]; // Un caractère pour chaque brick sélectionnée
+        letter.style.left = data.left + "px";
+        letter.style.top = data.top + "px";
+        letter.style.width = config.blockWidth + "px";
+        letter.style.height = config.blockHeight + "px";
+        letter.style.fontSize = (config.blockHeight * 0.8) + "px";
+        letter.style.color = "white";
+        letter.style.textAlign = "center";
+        letter.style.lineHeight = config.blockHeight + "px";
+        blocksContainer.appendChild(letter);
       }
     }
 
@@ -237,7 +239,7 @@
     // Fonction de fin de partie
     function gameOver() {
       gameRunning = false;
-      gameOverMessage.textContent = "Perdu ! fais un effort 👉\nScore : " + score + " blocs détruits";
+      gameOverMessage.textContent = "Perdu ! fais un effort 👉\nScore : " + score + " bricks détruits";
       gameOverScreen.style.display = 'flex';
     }
 
@@ -294,7 +296,7 @@
       posX = nextPosX;
       posY = nextPosY;
 
-      // Collision avec le paddle (uniquement si la balle descend)
+      // Collision avec le paddle (seulement si la balle descend)
       if (velocityY > 0 && checkCollision(paddle)) {
         const paddleRect = paddle.getBoundingClientRect();
         const paddleCenterX = paddleRect.left + paddleRect.width / 2;
@@ -310,7 +312,7 @@
         posY = paddleRect.top - config.ballSize;
       }
 
-      // Collision avec les blocs (impact sur la balle et suppression)
+      // Collision avec les bricks (impact sur la balle et suppression)
       const bricks = document.getElementsByClassName("block");
       for (let i = bricks.length - 1; i >= 0; i--) {
         if (checkCollision(bricks[i])) {
@@ -331,7 +333,7 @@
           }
           bricks[i].parentNode.removeChild(bricks[i]);
           score++;
-          // On traite une collision par frame
+          // On ne traite qu'une collision par frame
           break;
         }
       }
