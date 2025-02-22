@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brick Out - Jeu</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #f0f0f0;
+      position: relative;
+      font-family: sans-serif;
+    }
+    /* La balle */
+    #ball {
+      position: absolute;
+      border-radius: 50%;
+      background-image: url('texture.png'); /* Image locale */
+      background-size: cover;
+      z-index: 7;
+    }
+    /* Le paddle */
+    #paddle {
+      position: absolute;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      background-color: rgba(0, 0, 255, 0.5);
+      z-index: 8;
+    }
+    /* Container des blocs et du texte caché */
+    #blocks-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 30%; /* Hauteur réservée aux blocs */
+      z-index: 5;
+    }
+    /* Les blocs */
+    .block {
+      position: absolute;
+      background-color: #0095DD;
+      border: 1px solid white;
+      z-index: 6;
+    }
+    /* Le texte caché, placé derrière les blocs */
+    #hidden-text {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2em;
+      color: white;
+      pointer-events: none;
+    }
+    /* Écran de démarrage et de défaite */
+    #start-screen, #game-over {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      z-index: 10;
+    }
+    #start-screen p, #game-over p {
+      font-size: 2em;
+      margin: 0.5em;
+    }
+    #start-screen button, #game-over button {
+      font-size: 1.5em;
+      padding: 10px 20px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- Balle et paddle -->
+  <div id="ball"></div>
+  <div id="paddle"></div>
+  
+  <!-- Container des blocs avec le texte caché derrière -->
+  <div id="blocks-container">
+    <div id="hidden-text">Le secret est révélé !</div>
+  </div>
+  
+  <!-- Écran de démarrage -->
+  <div id="start-screen">
+    <p>Bienvenue ! Appuyez sur ▶ Jouer pour commencer.</p>
+    <button id="play-btn">▶ Jouer</button>
+  </div>
+  
+  <!-- Écran de défaite -->
+  <div id="game-over">
+    <p id="game-over-message">Perdu ! fais un effort 👉</p>
+    <button id="restart-btn">Recommencer</button>
+  </div>
+
+  <script>
+    // Configuration centralisée
+    const config = {
+      ballSize: 50,                   // Taille de la balle (en pixels)
+      ballInitialSpeed: 3,            // Vitesse initiale de la balle
+      paddleWidth: 100,               // Largeur du paddle
+      paddleHeight: 10,               // Hauteur du paddle
+      ballSpawnVerticalRatio: 0.33,   // La balle apparaît dans le tiers supérieur
+      paddleVerticalPositionRatio: 0.66, // Le paddle se place à 66% de la hauteur
+      extraSpeedFactor: 0.2,          // Influence de la vitesse horizontale du paddle sur la balle
+      bounceAngleMax: Math.PI / 3,    // Angle maximum de rebond (60°)
+      speedIncreaseFactor: 0.05,      // Augmentation de la vitesse de la balle à chaque rebond sur le plafond
+      blockRows: 3,                   // Nombre de lignes de blocs
+      blockCols: 8,                   // Nombre de colonnes de blocs
+      blockWidth: 80,                 // Largeur d'un bloc
+      blockHeight: 20,                // Hauteur d'un bloc
+      blockGap: 10                    // Espace entre les blocs
+    };
+
+    const ball = document.getElementById('ball');
+    const paddle = document.getElementById('paddle');
+    const blocksContainer = document.getElementById('blocks-container');
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over');
+    const playBtn = document.getElementById('play-btn');
+    const restartBtn = document.getElementById('restart-btn');
+    const gameOverMessage = document.getElementById('game-over-message');
+
+    // Appliquer les dimensions de la balle et du paddle
+    ball.style.width = config.ballSize + 'px';
+    ball.style.height = config.ballSize + 'px';
+    paddle.style.width = config.paddleWidth + 'px';
+    paddle.style.height = config.paddleHeight + 'px';
+
+    let posX, posY, velocityX, velocityY;
+    const ballRadius = config.ballSize / 2;
+    let score = 0;  // Nombre de blocs détruits
+
+    // Variables pour suivre la vitesse horizontale du paddle
+    let lastMouseX = window.innerWidth / 2;
+    let paddleSpeed = 0;
+    let gameRunning = false;
+
+    // Crée les blocs et les place dans le container, en recréant le texte caché derrière
+    function createBlocks() {
+      blocksContainer.innerHTML = "";
+      // Créer le texte caché
+      const ht = document.createElement('div');
+      ht.id = "hidden-text";
+      ht.textContent = "Le secret est révélé !";
+      ht.style.position = "absolute";
+      ht.style.top = "0";
+      ht.style.left = "0";
+      ht.style.width = "100%";
+      ht.style.height = "100%";
+      ht.style.zIndex = "4";
+      ht.style.display = "flex";
+      ht.style.alignItems = "center";
+      ht.style.justifyContent = "center";
+      ht.style.fontSize = "2em";
+      ht.style.color = "white";
+      ht.style.pointerEvents = "none";
+      blocksContainer.appendChild(ht);
+
+      // Calculer l'espace total utilisé par les blocs pour les centrer
+      const totalWidth = config.blockCols * config.blockWidth + (config.blockCols - 1) * config.blockGap;
+      const offsetX = (window.innerWidth - totalWidth) / 2;
+      const offsetY = 20; // marge depuis le haut
+
+      for (let row = 0; row < config.blockRows; row++) {
+        for (let col = 0; col < config.blockCols; col++) {
+          const block = document.createElement('div');
+          block.className = "block";
+          block.style.width = config.blockWidth + "px";
+          block.style.height = config.blockHeight + "px";
+          block.style.left = (offsetX + col * (config.blockWidth + config.blockGap)) + "px";
+          block.style.top = (offsetY + row * (config.blockHeight + config.blockGap)) + "px";
+          blocksContainer.appendChild(block);
+        }
+      }
+    }
+
+    // Réinitialise ou initialise la position de la balle
+    function resetBall() {
+      posX = Math.random() * (window.innerWidth - config.ballSize);
+      posY = Math.random() * ((window.innerHeight * config.ballSpawnVerticalRatio) - config.ballSize);
+      velocityX = config.ballInitialSpeed;
+      velocityY = config.ballInitialSpeed;
+    }
+
+    // Positionne le paddle en fonction de la souris (axe X) et selon la config pour l'axe Y
+    function updatePaddlePosition(x) {
+      paddle.style.left = x + 'px';
+      paddle.style.top = (window.innerHeight * config.paddleVerticalPositionRatio) + 'px';
+    }
+
+    // Détecte la collision entre la balle (cercle) et un élément rectangulaire
+    function checkCollision(element) {
+      const ballCenterX = posX + ballRadius;
+      const ballCenterY = posY + ballRadius;
+      const rect = element.getBoundingClientRect();
+      const closestX = Math.max(rect.left, Math.min(ballCenterX, rect.right));
+      const closestY = Math.max(rect.top, Math.min(ballCenterY, rect.bottom));
+      const distanceX = ballCenterX - closestX;
+      const distanceY = ballCenterY - closestY;
+      return (distanceX * distanceX + distanceY * distanceY) < (ballRadius * ballRadius);
+    }
+
+    // Fonction de fin de partie
+    function gameOver() {
+      gameRunning = false;
+      gameOverMessage.textContent = "Perdu ! fais un effort 👉\nScore : " + score + " cases détruites";
+      gameOverScreen.style.display = 'flex';
+    }
+
+    // Fonction pour démarrer le jeu
+    function startGame() {
+      startScreen.style.display = 'none';
+      gameOverScreen.style.display = 'none';
+      score = 0;
+      createBlocks();
+      resetBall();
+      lastMouseX = window.innerWidth / 2;
+      updatePaddlePosition(window.innerWidth / 2);
+      gameRunning = true;
+      updatePosition();
+    }
+
+    // Fonction principale de l'animation
+    function updatePosition() {
+      if (!gameRunning) return;
+      
+      let nextPosX = posX + velocityX;
+      let nextPosY = posY + velocityY;
+
+      // Rebonds sur les parois latérales
+      if (nextPosX <= 0) {
+        nextPosX = 0;
+        velocityX = -velocityX;
+      } else if (nextPosX + config.ballSize >= window.innerWidth) {
+        nextPosX = window.innerWidth - config.ballSize;
+        velocityX = -velocityX;
+      }
+
+      // Rebonds sur le plafond
+      if (nextPosY <= 0) {
+        nextPosY = 0;
+        velocityY = -velocityY;
+        velocityX *= (1 + config.speedIncreaseFactor);
+        velocityY *= (1 + config.speedIncreaseFactor);
+      }
+
+      // Vérification du sol (Game Over)
+      if (nextPosY + config.ballSize >= window.innerHeight) {
+        gameOver();
+        return;
+      }
+
+      posX = nextPosX;
+      posY = nextPosY;
+
+      // Collision avec le paddle (uniquement si la balle descend)
+      if (velocityY > 0 && checkCollision(paddle)) {
+        const paddleRect = paddle.getBoundingClientRect();
+        const paddleCenterX = paddleRect.left + paddleRect.width / 2;
+        const ballCenterX = posX + ballRadius;
+        let hitFactor = (ballCenterX - paddleCenterX) / (paddleRect.width / 2);
+        hitFactor = Math.max(-1, Math.min(1, hitFactor));
+        const bounceAngle = hitFactor * config.bounceAngleMax;
+        const currentSpeed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+        const extraSpeed = Math.abs(paddleSpeed) * config.extraSpeedFactor;
+        const newSpeed = currentSpeed + extraSpeed;
+        velocityX = newSpeed * Math.sin(bounceAngle);
+        velocityY = -Math.abs(newSpeed * Math.cos(bounceAngle));
+        posY = paddleRect.top - config.ballSize;
+      }
+
+      // Vérifier les collisions avec chaque bloc et les dégommer
+      const blocks = document.getElementsByClassName("block");
+      for (let i = blocks.length - 1; i >= 0; i--) {
+        if (checkCollision(blocks[i])) {
+          blocks[i].parentNode.removeChild(blocks[i]);
+          score++;
+        }
+      }
+
+      ball.style.left = posX + 'px';
+      ball.style.top = posY + 'px';
+
+      requestAnimationFrame(updatePosition);
+    }
+
+    // Suivi du mouvement de la souris pour déplacer le paddle horizontalement
+    document.addEventListener('mousemove', (e) => {
+      updatePaddlePosition(e.clientX);
+      paddleSpeed = e.clientX - lastMouseX;
+      lastMouseX = e.clientX;
+    });
+
+    // Gestion des boutons Play et Recommencer
+    playBtn.addEventListener('click', startGame);
+    restartBtn.addEventListener('click', startGame);
+
+    // Initialisation (affichage de l'écran de démarrage)
+    ball.style.left = '0px';
+    ball.style.top = '0px';
+    updatePaddlePosition(window.innerWidth / 2);
+    startScreen.style.display = 'flex';
+    gameOverScreen.style.display = 'none';
+  </script>
+</body>
+</html>
