@@ -118,7 +118,7 @@
     const config = {
       ballSize: 50,                   // Taille de la balle en pixels
       ballInitialSpeed: 3,            // Vitesse initiale de la balle
-      paddleWidth: 100,               // Largeur de la barre
+      paddleWidth: 100,               // Largeur de la barre (sera ajustée responsivement)
       paddleHeight: 10,               // Hauteur de la barre
       ballSpawnVerticalRatio: 0.33,   // La balle apparaît dans le tiers supérieur
       paddleVerticalPositionRatio: 0.66, // La barre se place à 66% de la hauteur
@@ -150,13 +150,28 @@
     // Ajustement responsive
     function setResponsiveConfig() {
       const isMobile = window.innerWidth < 600;
-      config.ballSize = isMobile ? window.innerWidth * 0.1 : 50;
-      config.paddleWidth = isMobile ? window.innerWidth * 0.2 : 100;
-      config.paddleHeight = isMobile ? window.innerWidth * 0.02 : 10;
-      config.blockWidth = isMobile ? window.innerWidth * 0.12 : 100;
-      config.blockHeight = isMobile ? window.innerWidth * 0.04 : 30;
-      config.blockGap = isMobile ? 3 : 5;
-      config.powerUpSize = isMobile ? window.innerWidth * 0.05 : 30;
+      if(isMobile) {
+        config.ballSize = window.innerWidth * 0.1;
+        config.paddleWidth = window.innerWidth * 0.2;
+        config.paddleHeight = window.innerWidth * 0.02;
+        // Définir la largeur par défaut et maximale pour la barre sur mobile
+        config.defaultPaddleWidth = config.paddleWidth;
+        config.maxPaddleWidth = config.paddleWidth * 2; // par exemple, au maximum le double
+        config.blockWidth = window.innerWidth * 0.12;
+        config.blockHeight = window.innerWidth * 0.04;
+        config.blockGap = 3;
+        config.powerUpSize = window.innerWidth * 0.05;
+      } else {
+        config.ballSize = 50;
+        config.paddleWidth = 100;
+        config.paddleHeight = 10;
+        config.defaultPaddleWidth = 100;
+        config.maxPaddleWidth = 200;
+        config.blockWidth = 100;
+        config.blockHeight = 30;
+        config.blockGap = 5;
+        config.powerUpSize = 30;
+      }
     }
     setResponsiveConfig();
 
@@ -310,9 +325,11 @@
           ball.velocityY = config.ballInitialSpeed * signY;
         });
       } else if (type === "increasePaddle") {
-        // Double la largeur de la barre et met à jour son style
-        config.paddleWidth *= 2;
-        paddle.style.width = config.paddleWidth + "px";
+        // Limiter l'agrandissement de la barre à une largeur maximale
+        if (config.paddleWidth < config.maxPaddleWidth) {
+          config.paddleWidth = Math.min(config.paddleWidth * 2, config.maxPaddleWidth);
+          paddle.style.width = config.paddleWidth + "px";
+        }
       }
     }
 
